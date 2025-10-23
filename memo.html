@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>メモアプリ</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; text-align: center; }
+    textarea, input[type="text"], select { width: 80%; margin: 5px 0; padding: 6px; font-size: 16px; }
+    button { margin: 5px; padding: 6px 12px; font-size: 14px; border: none; border-radius: 5px; cursor: pointer; }
+    #saveBtn { background: #4CAF50; color: white; }
+    #searchOpenBtn { background: #2196F3; color: white; }
+    #sortBtn { background: #9C27B0; color:white; }
+    #memoList { width: 80%; margin: 20px auto; text-align: left; }
+    .memo { border: 1px solid #ccc; border-radius: 10px; padding: 10px; margin: 10px 0; display: flex; justify-content: space-between; align-items: center; }
+    .menuBtn { background: transparent; border: none; font-size: 20px; cursor: pointer; }
+    .dialog { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border: 2px solid #333; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.3); z-index: 10; }
+    .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 5; }
+    #editDialog button { background: #4CAF50; color: white; }
+    #deleteBtn { background: #f44336; color: white; }
+    #searchDialog button { background: #2196F3; color: white; }
+    #inputArea {
+
+  position: relative;
+  width: 80%;
+  margin: 0 auto;
+}
+
+#memoInput {
+  width: 100%;
+  height: 100px;
+  padding: 6px 80px 6px 6px; /* 右側にラベル分の余白を確保 */
+  font-size: 16px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+#labelRight {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: white; /* 背景を白にして文字が被らないように */
+  padding: 2px 4px;
+  border-radius: 5px;
+}
+
+
+#buttonArea {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px; /* ボタン間の余白 */
+  margin-top: 10px;
+}
+
+
+  </style>
+
+</head>
+<body>
+  <!-- 入力部分まとめ -->
+<h2>メモアプリ</h2>
+
+<!-- 入力部分 -->
+<div id="inputArea">
+  <textarea id="memoInput" placeholder="メモを入力..."></textarea>
+
+  <label id="labelRight">ラベル:
+    <select id="labelSelect">
+      <option value="">なし</option>
+      <option value="yellow">黄色</option>
+      <option value="red">赤色</option>
+      <option value="green">緑色</option>
+      <option value="blue">青色</option>
+    </select>
+  </label>
+</div>
+
+  <button id="saveBtn">保存</button>
+  <button id="searchOpenBtn">検索</button>
+  <button id="sortBtn">新しい順</button>
+  <button id="searchStatus" style="margin-left: 12px; font-size: 14px; color: #ff0000;"></button>
+
+  <div id="memoList"></div>
+
+  <!-- オーバーレイ -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- メニュー -->
+  <div class="dialog" id="menuDialog">
+    <p>操作を選択</p>
+    <button id="editBtn">編集</button>
+    <button id="deleteBtn">削除</button><br>
+    <button onclick="closeDialogs()">キャンセル</button>
+  </div>
+
+  <!-- 編集ダイアログ -->
+  <div class="dialog" id="editDialog">
+    <p>メモを編集</p>
+    <textarea id="editInput" rows="4" cols="40"></textarea><br>
+    <label>ラベル:
+      <select id="editLabelSelect">
+        <option value="">なし</option>
+        <option value="yellow">黄色</option>
+        <option value="red">赤</option>
+        <option value="green">緑</option>
+        <option value="blue">青</option>
+      </select>
+    </label><br>
+    <button id="updateBtn">更新</button>
+    <button onclick="closeDialogs()">キャンセル</button>
+  </div>
+
+  <!-- 検索ダイアログ -->
+  <div class="dialog" id="searchDialog">
+    <p>検索条件</p>
+    <input type="text" id="searchInput" placeholder="キーワード"><br>
+    <label>ラベルで絞り込み:
+      <select id="searchLabel">
+        <option value="">すべて</option>
+        <option value="yellow">黄色</option>
+        <option value="red">赤</option>
+        <option value="green">緑</option>
+        <option value="blue">青</option>
+      </select>
+    </label><br>
+    <button id="searchBtn">検索</button>
+    <button onclick="closeDialogs()">キャンセル</button>
+  </div>
+
+<script>
+const memoInput = document.getElementById('memoInput');
+const labelSelect = document.getElementById('labelSelect');
+const memoList = document.getElementById('memoList');
+const overlay = document.getElementById('overlay');
+const menuDialog = document.getElementById('menuDialog');
+const editDialog = document.getElementById('editDialog');
+const editInput = document.getElementById('editInput');
+const editLabelSelect = document.getElementById('editLabelSelect');
+const searchDialog = document.getElementById('searchDialog');
+const searchInput = document.getElementById('searchInput');
+const searchLabel = document.getElementById('searchLabel');
+const searchStatus = document.getElementById('searchStatus');
+let selectedMemoIndex = null;
+let sortOrder = 'desc'; // 新しい順
+
+// 保存
+document.getElementById('saveBtn').onclick = () => {
+  const text = memoInput.value.trim();
+  const label = labelSelect.value;
+  if(!text) return;
+  const now = new Date();
+  const memo = {
+    id: Date.now(), // ユニークIDを生成
+    text,
+    date: now.toISOString(),
+    label
+  };
+  const memos = JSON.parse(localStorage.getItem('memos') || "[]");
+  memos.push(memo);
+  localStorage.setItem('memos', JSON.stringify(memos));
+  memoInput.value = "";
+  labelSelect.value = "";
+  searchInput.value = "";
+  searchLabel.value = "";
+  searchStatus.innerHTML = "";
+  displayMemos();
+};
+
+
+// メモ表示
+function displayMemos(list = null) {
+  const memos = JSON.parse(localStorage.getItem('memos') || "[]");
+  let displayList = list || memos;
+
+  // 日付で並び替え
+ displayList.sort((a,b) => {
+    const timeA = new Date(a.date).getTime();
+    const timeB = new Date(b.date).getTime();
+    return sortOrder === 'desc' ? timeB - timeA : timeA - timeB;
+  });
+
+  memoList.innerHTML = "";
+  displayList.forEach((memo) => {
+    const div = document.createElement('div');
+    div.className = 'memo';
+    let bgColor = '';
+    switch(memo.label){
+      case 'yellow': bgColor='#FFEB3B'; break;
+      case 'red': bgColor='#F44336'; break;
+      case 'green': bgColor='#4CAF50'; break;
+      case 'blue': bgColor='#2196F3'; break;
+      default: bgColor='white';
+    }
+    div.style.backgroundColor = bgColor;
+    div.innerHTML = `
+      <span>${memo.text}</span>
+      <button class="menuBtn" onclick="openMenu(${memo.id})">⋮</button>
+    `;
+    memoList.appendChild(div);
+  });
+}
+
+// メニュー
+function openMenu(id){
+  selectedMemoIndex = id; // indexではなくIDを保持
+  overlay.style.display = 'block';
+  menuDialog.style.display = 'block';
+}
+
+// 削除
+document.getElementById('deleteBtn').onclick = () => {
+  if(selectedMemoIndex===null) return;
+  let memos = JSON.parse(localStorage.getItem('memos') || "[]");
+  memos = memos.filter(m => m.id !== selectedMemoIndex); // IDで削除
+  localStorage.setItem('memos', JSON.stringify(memos));
+  closeDialogs();
+  displayMemos();
+};
+
+// 編集
+document.getElementById('editBtn').onclick = () => {
+  if(selectedMemoIndex===null) return;
+  const memos = JSON.parse(localStorage.getItem('memos') || "[]");
+  const memo = memos.find(m => m.id === selectedMemoIndex);
+  editInput.value = memo.text;
+  editLabelSelect.value = memo.label || "";
+  menuDialog.style.display='none';
+  editDialog.style.display='block';
+};
+
+// 更新
+document.getElementById('updateBtn').onclick = () => {
+  if(selectedMemoIndex===null) return;
+  const memos = JSON.parse(localStorage.getItem('memos') || "[]");
+  const memo = memos.find(m => m.id === selectedMemoIndex);
+  memo.text = editInput.value;
+  memo.label = editLabelSelect.value;
+  localStorage.setItem('memos', JSON.stringify(memos));
+  closeDialogs();
+  searchInput.value = "";
+  searchLabel.value = "";
+  searchStatus.innerHTML = "";
+  displayMemos();
+};
+
+// 並び替え
+document.getElementById('sortBtn').onclick = () => {
+  sortOrder = sortOrder==='desc' ? 'asc' : 'desc';
+  document.getElementById('sortBtn').innerText = sortOrder==='desc'?'新しい順':'古い順';
+  displayMemos();
+};
+
+// 検索
+document.getElementById('searchOpenBtn').onclick = () => {
+  overlay.style.display = 'block';
+  searchDialog.style.display = 'block';
+};
+
+document.getElementById('searchBtn').onclick = () => {
+  const keyword = searchInput.value.toLowerCase().trim();
+  const label = searchLabel.value;
+  const memos = JSON.parse(localStorage.getItem('memos') || "[]");
+  let filtered = memos;
+  if(keyword) filtered = filtered.filter(m=>m.text.toLowerCase().includes(keyword));
+  if(label) filtered = filtered.filter(m=>m.label===label);
+  displayMemos(filtered);
+  closeDialogs();
+  searchStatus.innerHTML = `検索中：「${keyword||'すべて'}」 ラベル：「${label||'すべて'}」 リセット`;
+  searchStatus.onclick = () => {
+    searchInput.value="";
+    searchLabel.value="";
+    displayMemos();
+    searchStatus.innerHTML="";
+  };
+};
+
+// ダイアログ閉じる
+function closeDialogs(){
+  overlay.style.display='none';
+  menuDialog.style.display='none';
+  editDialog.style.display='none';
+  searchDialog.style.display='none';
+  selectedMemoIndex = null;
+}
+
+overlay.addEventListener('click', closeDialogs);
+
+// 初期表示
+displayMemos();
+</script>
+</body>
+</html>

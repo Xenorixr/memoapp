@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>アカウント作成</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="login-box">
+    <h2>アカウント作成</h2>
+    <input type="text" id="newUsername" placeholder="ユーザー名">
+    <input type="password" id="newPassword" placeholder="パスワード">
+    <button id="createBtn">作成</button>
+  </div>
+
+  <script>
+    document.getElementById("createBtn").addEventListener("click", function() {
+      const user = document.getElementById("newUsername").value.trim();
+      const pass = document.getElementById("newPassword").value.trim();
+
+      if (!user || !pass) {
+        alert("ユーザー名とパスワードを入力してください");
+        return;
+      }
+
+      // localStorageにアカウントを保存
+      const accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
+      accounts.push({ username: user, password: pass });
+      localStorage.setItem("accounts", JSON.stringify(accounts));
+
+      // アカウント作成後に自動でメモアプリに遷移
+      window.location.href = "memo.html";
+    });
+  </script>
+</body>
+</html>
